@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -12,7 +12,8 @@ import {
   ArrowRight, 
   ArrowLeft, 
   Sparkle, 
-  Upload, 
+  Upload,
+  FilePdf,
   CheckCircle,
   Palette,
   ChartBar,
@@ -21,13 +22,16 @@ import {
   CurrencyDollar,
   Megaphone,
   Presentation,
-  Scales
+  Scales,
+  MagnifyingGlass
 } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import type { ProjectData, BrandVibe,  GeneratedAsset, AssetCategory } from '@/lib/types'
 import { VIBE_OPTIONS, WIZARD_STEPS, ASSET_CATEGORIES } from '@/lib/constants'
-import { generateProjectId, generateAssetId, extractProjectDataFromDocument, generateAsset } from '@/lib/ai-helpers'
+import { generateProjectId, generateAssetId, extractProjectDataFromDocument, extractTextFromPDF, generateAsset } from '@/lib/ai-helpers'
 import { useKV } from '@github/spark/hooks'
+import { ResearchPanel } from '@/components/ResearchPanel'
+import { ExportSharePanel } from '@/components/ExportSharePanel'
 
 interface MainAppProps {
   currentProject: ProjectData | null
@@ -42,7 +46,8 @@ export function MainApp({ currentProject, onProjectChange, onReset }: MainAppPro
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [importText, setImportText] = useState('')
   const [assets, setAssets] = useKV<GeneratedAsset[]>('generated-assets', [])
-  const [selectedAssetCategory, setSelectedAssetCategory] = useState<AssetCategory>('brand')
+  const [selectedAssetCategory, setSelectedAssetCategory] = useState<AssetCategory | 'research'>('brand')
+  const fileInputRef = useRef<HTMLInputElement>(null)
   
   const [formData, setFormData] = useState<Partial<ProjectData>>({
     companyName: '',
@@ -73,6 +78,26 @@ export function MainApp({ currentProject, onProjectChange, onReset }: MainAppPro
       toast.success('Document imported successfully!')
     } catch (error) {
       toast.error('Failed to import document. Please try again.')
+    }
+  }
+
+  const handlePDFUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    if (file.type !== 'application/pdf') {
+      toast.error('Please upload a PDF file')
+      return
+    }
+
+    toast.loading('Extracting text from PDF...')
+
+    try {
+      const text = await extractTextFromPDF(file)
+      setImportText(text)
+      toast.success('PDF content extracted. Review and import.')
+    } catch (error) {
+      toast.error('Failed to extract PDF content. Please try pasting text instead.')
     }
   }
 
@@ -177,9 +202,16 @@ export function MainApp({ currentProject, onProjectChange, onReset }: MainAppPro
               <h1 className="text-2xl font-bold text-foreground">{currentProject.companyName}</h1>
               <p className="text-sm text-muted-foreground">{currentProject.tagline}</p>
             </div>
-            <Button variant="outline" onClick={onReset}>
-              New Project
-            </Button>
+            <div className="flex items-center gap-2">
+              <ExportSharePanel 
+                project={currentProject} 
+                assets={assetsArray}
+                onProjectUpdate={onProjectChange}
+              />
+              <Button variant="outline" onClick={onReset}>
+                New Project
+              </Button>
+            </div>
           </div>
         </header>
 
@@ -207,10 +239,24 @@ export function MainApp({ currentProject, onProjectChange, onReset }: MainAppPro
                   </button>
                 )
               })}
+              
+              <button
+                onClick={() => setSelectedAssetCategory('research')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
+                  selectedAssetCategory === 'research'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'hover:bg-muted text-foreground'
+                }`}
+              >
+                <MagnifyingGlass size={20} weight="fill" />
+                <span className="text-sm font-medium flex-1 text-left">AI Research</span>
+              </button>
             </aside>
 
             <main className="lg:col-span-3">
-              {selectedAsset ? (
+              {selectedAssetCategory === 'research' ? (
+                <ResearchPanel project={currentProject} />
+              ) : selectedAsset ? (
                 <Card>
                   <CardHeader>
                     <div className="flex items-center gap-3">
@@ -336,15 +382,46 @@ export function MainApp({ currentProject, onProjectChange, onReset }: MainAppPro
                       <DialogHeader>
                         <DialogTitle>Import from Document</DialogTitle>
                         <DialogDescription>
-                          Paste your README, business plan, or notes. AI will extract the key information.
+                          Upload a PDF or paste text. AI will extract the key information.
                         </DialogDescription>
                       </DialogHeader>
-                      <Textarea
-                        placeholder="Paste your document content here..."
-                        value={importText}
-                        onChange={(e) => setImportText(e.target.value)}
-                        rows={10}
-                      />
+                      
+                      <div className="space-y-4">
+                        <div>
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept=".pdf"
+                            onChange={handlePDFUpload}
+                            className="hidden"
+                          />
+                          <Button
+                            onClick={() => fileInputRef.current?.click()}
+                            variant="outline"
+                            className="w-full"
+                          >
+                            <FilePdf className="mr-2" size={20} />
+                            Upload PDF Document
+                          </Button>
+                        </div>
+                        
+                        <div className="relative">
+                          <div className="absolute inset-0 flex items-center">
+                            <span className="w-full border-t" />
+                          </div>
+                          <div className="relative flex justify-center text-xs uppercase">
+                            <span className="bg-background px-2 text-muted-foreground">Or paste text</span>
+                          </div>
+                        </div>
+                        
+                        <Textarea
+                          placeholder="Paste your document content here..."
+                          value={importText}
+                          onChange={(e) => setImportText(e.target.value)}
+                          rows={10}
+                        />
+                      </div>
+                      
                       <div className="flex justify-end gap-2">
                         <Button variant="outline" onClick={() => setShowImportDialog(false)}>
                           Cancel

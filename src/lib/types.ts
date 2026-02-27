@@ -22,6 +22,8 @@ export interface ProjectData {
   brandVibe: BrandVibe
   
   status: 'draft' | 'generating' | 'complete'
+  shareId?: string
+  isPublic?: boolean
 }
 
 export interface GeneratedAsset {
@@ -52,4 +54,22 @@ export interface VibeOption {
     accent: string
   }
   fontPairing: string
+}
+
+export interface CompetitorData {
+  name: string
+  description: string
+  strengths: string[]
+  weaknesses: string[]
+  pricing: string
+  targetMarket: string
+  url?: string
+}
+
+export interface MarketResearchData {
+  trends: string[]
+  opportunities: string[]
+  threats: string[]
+  demandSignals: string[]
+  industryInsights: string[]
 }

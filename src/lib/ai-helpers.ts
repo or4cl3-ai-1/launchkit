@@ -1,4 +1,22 @@
-import type { ProjectData, GeneratedAsset, AssetCategory } from './types'
+import type { ProjectData, GeneratedAsset, AssetCategory, CompetitorData, MarketResearchData } from './types'
+
+export async function extractTextFromPDF(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = async (e) => {
+      try {
+        const arrayBuffer = e.target?.result as ArrayBuffer
+        const uint8Array = new Uint8Array(arrayBuffer)
+        const text = new TextDecoder().decode(uint8Array)
+        resolve(text)
+      } catch (error) {
+        reject(error)
+      }
+    }
+    reader.onerror = () => reject(new Error('Failed to read file'))
+    reader.readAsArrayBuffer(file)
+  })
+}
 
 export async function extractProjectDataFromDocument(document: string): Promise<Partial<ProjectData>> {
   const prompt = spark.llmPrompt`You are analyzing a business document to extract structured information.
@@ -234,4 +252,110 @@ export function generateProjectId(): string {
 
 export function generateAssetId(): string {
   return `asset_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+}
+
+export function generateShareId(): string {
+  return `share_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+}
+
+export async function conductMarketResearch(project: ProjectData): Promise<MarketResearchData> {
+  const prompt = spark.llmPrompt`You are a market research analyst conducting comprehensive research.
+
+Company Details:
+- Name: ${project.companyName}
+- Solution: ${project.solution}
+- Target Market: ${project.targetMarket}
+- Market Size: ${project.marketSize}
+
+Conduct deep market research and return a JSON object with:
+{
+  "trends": ["trend 1", "trend 2", ...] (5-7 current market trends),
+  "opportunities": ["opportunity 1", ...] (5-7 market opportunities),
+  "threats": ["threat 1", ...] (3-5 potential threats),
+  "demandSignals": ["signal 1", ...] (5-7 demand indicators),
+  "industryInsights": ["insight 1", ...] (5-7 key insights)
+}
+
+Be specific, data-driven, and actionable.`
+
+  const result = await spark.llm(prompt, 'gpt-4o', true)
+  return JSON.parse(result)
+}
+
+export async function analyzeCompetition(project: ProjectData): Promise<CompetitorData[]> {
+  const prompt = spark.llmPrompt`You are a competitive intelligence analyst researching competitors.
+
+Company Details:
+- Name: ${project.companyName}
+- Solution: ${project.solution}
+- Unique Value: ${project.uniqueValue}
+- Target Market: ${project.targetMarket}
+
+Identify and analyze 5-7 real or realistic competitors. Return a JSON object with:
+{
+  "competitors": [
+    {
+      "name": "Competitor Name",
+      "description": "What they do",
+      "strengths": ["strength 1", "strength 2", "strength 3"],
+      "weaknesses": ["weakness 1", "weakness 2"],
+      "pricing": "Pricing model/tiers",
+      "targetMarket": "Their target market",
+      "url": "website if known or realistic"
+    }
+  ]
+}
+
+Be specific and realistic about competitor capabilities.`
+
+  const result = await spark.llm(prompt, 'gpt-4o', true)
+  const parsed = JSON.parse(result)
+  return parsed.competitors
+}
+
+export function exportAsMarkdown(project: ProjectData, assets: GeneratedAsset[]): string {
+  let markdown = `# ${project.companyName}\n\n`
+  markdown += `**${project.tagline}**\n\n`
+  markdown += `---\n\n`
+  markdown += `## Project Overview\n\n`
+  markdown += `**Created:** ${new Date(project.createdAt).toLocaleDateString()}\n`
+  markdown += `**Brand Vibe:** ${project.brandVibe}\n\n`
+  
+  markdown += `### Problem\n${project.problem}\n\n`
+  markdown += `### Solution\n${project.solution}\n\n`
+  markdown += `### Unique Value\n${project.uniqueValue}\n\n`
+  
+  markdown += `---\n\n`
+  
+  for (const asset of assets) {
+    markdown += `## ${asset.title}\n\n`
+    markdown += `${asset.content}\n\n`
+    markdown += `---\n\n`
+  }
+  
+  return markdown
+}
+
+export function downloadMarkdown(content: string, filename: string): void {
+  const blob = new Blob([content], { type: 'text/markdown' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+export function downloadJSON(data: any, filename: string): void {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }
