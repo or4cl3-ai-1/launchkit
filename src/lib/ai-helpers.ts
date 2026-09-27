@@ -1,21 +1,21 @@
 import type { ProjectData, GeneratedAsset, AssetCategory, CompetitorData, MarketResearchData } from './types'
+import { spark } from './standalone'
+import * as pdfjsLib from 'pdfjs-dist'
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
 export async function extractTextFromPDF(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = async (e) => {
-      try {
-        const arrayBuffer = e.target?.result as ArrayBuffer
-        const uint8Array = new Uint8Array(arrayBuffer)
-        const text = new TextDecoder().decode(uint8Array)
-        resolve(text)
-      } catch (error) {
-        reject(error)
-      }
-    }
-    reader.onerror = () => reject(new Error('Failed to read file'))
-    reader.readAsArrayBuffer(file)
-  })
+  const arrayBuffer = await file.arrayBuffer()
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+  const chunks: string[] = []
+  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+    const page = await pdf.getPage(pageNum)
+    const content = await page.getTextContent()
+    const text = content.items.map((item) => ('str' in item ? (item as { str: string }).str : '')).join(' ')
+    chunks.push(text)
+  }
+  return chunks.join('\n\n')
 }
 
 export async function extractProjectDataFromDocument(document: string): Promise<Partial<ProjectData>> {

@@ -1,7 +1,7 @@
 {
-    "name": "spark-template",
+    "name": "launchkit",
     "private": true,
-    "version": "0.0.0",
+    "version": "1.0.0",
     "type": "module",
     "scripts": {
         "dev": "vite",
@@ -12,7 +12,6 @@
         "preview": "vite preview"
     },
     "dependencies": {
-        "@github/spark": ">=0.43.1 <1",
         "@heroicons/react": "^2.2.0",
         "@hookform/resolvers": "^5.2.2",
         "@octokit/core": "^6.1.4",
@@ -59,6 +58,7 @@
         "marked": "^15.0.7",
         "next-themes": "^0.4.6",
         "octokit": "^4.1.2",
+        "pdfjs-dist": "^6.3.289",
         "react": "^19.2.4",
         "react-day-picker": "^9.6.7",
         "react-dom": "^19.0.0",

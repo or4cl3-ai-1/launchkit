@@ -29,7 +29,9 @@ import { toast } from 'sonner'
 import type { ProjectData, BrandVibe,  GeneratedAsset, AssetCategory } from '@/lib/types'
 import { VIBE_OPTIONS, WIZARD_STEPS, ASSET_CATEGORIES } from '@/lib/constants'
 import { generateProjectId, generateAssetId, extractProjectDataFromDocument, extractTextFromPDF, generateAsset } from '@/lib/ai-helpers'
-import { useKV } from '@github/spark/hooks'
+import { useKV } from '@/lib/standalone'
+import { getApiKey } from '@/lib/standalone'
+import { ApiKeyDialog } from '@/components/ApiKeyDialog'
 import { ResearchPanel } from '@/components/ResearchPanel'
 import { ExportSharePanel } from '@/components/ExportSharePanel'
 
@@ -44,6 +46,7 @@ export function MainApp({ currentProject, onProjectChange, onReset }: MainAppPro
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationProgress, setGenerationProgress] = useState(0)
   const [showImportDialog, setShowImportDialog] = useState(false)
+  const [showKeyDialog, setShowKeyDialog] = useState(false)
   const [importText, setImportText] = useState('')
   const [assets, setAssets] = useKV<GeneratedAsset[]>('generated-assets', [])
   const [selectedAssetCategory, setSelectedAssetCategory] = useState<AssetCategory | 'research'>('brand')
@@ -63,11 +66,21 @@ export function MainApp({ currentProject, onProjectChange, onReset }: MainAppPro
     brandVibe: 'tech'
   })
 
+  const requireApiKey = () => {
+    if (!getApiKey()) {
+      setShowKeyDialog(true)
+      toast.error('Add your AI provider API key first — generation uses your own key')
+      return false
+    }
+    return true
+  }
+
   const handleImportDocument = async () => {
     if (!importText.trim()) {
       toast.error('Please paste some content to import')
       return
     }
+    if (!requireApiKey()) return
 
     toast.loading('AI is analyzing your document...')
     
@@ -120,6 +133,7 @@ export function MainApp({ currentProject, onProjectChange, onReset }: MainAppPro
       toast.error('Please fill in at least company name, problem, and solution')
       return
     }
+    if (!requireApiKey()) return
 
     setIsGenerating(true)
     setGenerationProgress(0)
@@ -196,6 +210,7 @@ export function MainApp({ currentProject, onProjectChange, onReset }: MainAppPro
   if (currentProject?.status === 'complete' && assetsArray.length > 0) {
     return (
       <div className="min-h-screen bg-background">
+        <ApiKeyDialog open={showKeyDialog} onOpenChange={setShowKeyDialog} />
         <header className="border-b bg-card">
           <div className="container mx-auto px-6 py-4 flex items-center justify-between">
             <div>
@@ -208,6 +223,9 @@ export function MainApp({ currentProject, onProjectChange, onReset }: MainAppPro
                 assets={assetsArray}
                 onProjectUpdate={onProjectChange}
               />
+              <Button variant="outline" onClick={() => setShowKeyDialog(true)}>
+                API Key
+              </Button>
               <Button variant="outline" onClick={onReset}>
                 New Project
               </Button>
@@ -330,6 +348,7 @@ export function MainApp({ currentProject, onProjectChange, onReset }: MainAppPro
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 p-6">
+      <ApiKeyDialog open={showKeyDialog} onOpenChange={setShowKeyDialog} />
       <div className="container mx-auto max-w-4xl">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-white mb-2">Create Your Project</h1>

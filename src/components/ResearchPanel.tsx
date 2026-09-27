@@ -7,7 +7,7 @@ import { MagnifyingGlass, TrendUp, Target, Warning } from '@phosphor-icons/react
 import { toast } from 'sonner'
 import type { ProjectData, CompetitorData, MarketResearchData } from '@/lib/types'
 import { conductMarketResearch, analyzeCompetition } from '@/lib/ai-helpers'
-import { useKV } from '@github/spark/hooks'
+import { useKV } from '@/lib/standalone'
 
 interface ResearchPanelProps {
   project: ProjectData
