@@ -51,7 +51,7 @@ npm run build    # static output in dist/
 
 ## Roadmap
 
-- One-time asset packs (Starter / Pro / Complete) via Stripe
+- One-time asset packs (Starter $49 / Pro $99 / Complete $199 / Refresh $29) via Stripe Payment Links — app is wired, links pending (see STRIPE_SETUP.md)
 - PDF export with branded templates
 - Per-asset regeneration
 - More brand vibes

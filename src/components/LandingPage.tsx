@@ -1,9 +1,55 @@
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Sparkle, Rocket, Lightning } from '@phosphor-icons/react'
+import { Sparkle, Rocket, Lightning, Check } from '@phosphor-icons/react'
+import { PACKS, categoryName, type Pack } from '@/lib/packs'
 
 interface LandingPageProps {
   onStart: () => void
+}
+
+function PackCard({ pack }: { pack: Pack }) {
+  const buyButton = pack.stripeLink ? (
+    <Button asChild className="w-full bg-primary hover:bg-primary/90 text-white">
+      <a href={pack.stripeLink} target="_blank" rel="noopener noreferrer">
+        Buy {pack.name} — ${pack.priceUSD}
+      </a>
+    </Button>
+  ) : (
+    <Button disabled className="w-full">
+      Checkout opening soon
+    </Button>
+  )
+
+  return (
+    <Card
+      className={`p-6 flex flex-col gap-4 backdrop-blur-sm transition-all ${
+        pack.featured
+          ? 'bg-white/10 border-accent/60 ring-2 ring-accent/40'
+          : 'bg-white/5 border-white/10 hover:bg-white/10'
+      }`}
+    >
+      {pack.featured && (
+        <div className="text-xs font-semibold uppercase tracking-wider text-accent">Most popular</div>
+      )}
+      <div>
+        <h3 className="text-xl font-bold text-white">{pack.name}</h3>
+        <p className="text-sm text-slate-400">{pack.tagline}</p>
+      </div>
+      <div className="text-4xl font-bold text-white">
+        ${pack.priceUSD}
+        <span className="text-sm font-normal text-slate-400"> one-time</span>
+      </div>
+      <ul className="space-y-2 text-sm text-slate-300 flex-1">
+        {pack.categories.map((c) => (
+          <li key={c} className="flex items-start gap-2">
+            <Check size={16} className="text-accent mt-0.5 shrink-0" />
+            <span>{categoryName(c)}</span>
+          </li>
+        ))}
+      </ul>
+      {buyButton}
+    </Card>
+  )
 }
 
 export function LandingPage({ onStart }: LandingPageProps) {
@@ -81,6 +127,43 @@ export function LandingPage({ onStart }: LandingPageProps) {
             </Card>
           </div>
         </div>
+      </div>
+
+      <div className="relative z-10 container mx-auto px-6 py-16 max-w-5xl">
+        <div className="text-center space-y-4 mb-10">
+          <h2 className="text-4xl md:text-5xl font-bold text-white">Own your launch pack</h2>
+          <p className="text-lg text-slate-300 max-w-2xl mx-auto">
+            Generate free with your own AI key. Pay once to export the clean, investor-ready documents.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {PACKS.filter((p) => p.id !== 'refresh').map((pack) => (
+            <PackCard key={pack.id} pack={pack} />
+          ))}
+        </div>
+        {(() => {
+          const refresh = PACKS.find((p) => p.id === 'refresh')!
+          return (
+            <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white/5 border border-white/10 rounded-xl p-5">
+              <div>
+                <span className="text-white font-semibold">{refresh.name} — ${refresh.priceUSD}</span>
+                <span className="text-slate-400 text-sm"> · {refresh.tagline}</span>
+              </div>
+              {refresh.stripeLink ? (
+                <Button asChild variant="outline">
+                  <a href={refresh.stripeLink} target="_blank" rel="noopener noreferrer">
+                    Buy Refresh — ${refresh.priceUSD}
+                  </a>
+                </Button>
+              ) : (
+                <Button disabled variant="outline">Checkout opening soon</Button>
+              )}
+            </div>
+          )
+        })()}
+        <p className="text-center text-xs text-slate-500 mt-6">
+          One-time payments via Stripe. You bring your own AI key — generation costs roughly $1 in API credits; the pack is the finished documents.
+        </p>
       </div>
     </div>
   )

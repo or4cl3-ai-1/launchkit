@@ -11,10 +11,11 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import { DownloadSimple, FileArrowDown, FileText, Copy, CheckCircle, ShareNetwork } from '@phosphor-icons/react'
+import { DownloadSimple, FileArrowDown, FileText, Copy, CheckCircle, ShareNetwork, Lock } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import type { ProjectData, GeneratedAsset } from '@/lib/types'
+import type { ProjectData, GeneratedAsset, AssetCategory } from '@/lib/types'
 import { exportAsMarkdown, downloadMarkdown, downloadJSON, generateShareId } from '@/lib/ai-helpers'
+import { usePurchases, categoryName, type Pack } from '@/lib/packs'
 
 interface ExportSharePanelProps {
   project: ProjectData
@@ -25,12 +26,33 @@ interface ExportSharePanelProps {
 export function ExportSharePanel({ project, assets, onProjectUpdate }: ExportSharePanelProps) {
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [upsell, setUpsell] = useState<{ pack: Pack; locked: AssetCategory[] } | null>(null)
+  const { exportableCategories, cheapestPackFor } = usePurchases()
 
-  const handleExportMarkdown = () => {
-    const markdown = exportAsMarkdown(project, assets)
+  const doExportMarkdown = (onlyUnlocked: GeneratedAsset[]) => {
+    const markdown = exportAsMarkdown(project, onlyUnlocked, true)
     const filename = `${project.companyName.replace(/\s+/g, '-').toLowerCase()}-launchkit.md`
     downloadMarkdown(markdown, filename)
-    toast.success('Project exported as Markdown')
+    toast.success('Pack exported as Markdown')
+  }
+
+  const handleExportMarkdown = () => {
+    const exportable = exportableCategories()
+    const locked = [...new Set(assets.map((a) => a.category))].filter((c) => !exportable.includes(c))
+    if (locked.length > 0) {
+      const pack = cheapestPackFor(assets.map((a) => a.category))
+      if (pack) {
+        setUpsell({ pack, locked })
+        return
+      }
+    }
+    doExportMarkdown(assets)
+  }
+
+  const handleExportUnlockedOnly = () => {
+    const exportable = exportableCategories()
+    doExportMarkdown(assets.filter((a) => exportable.includes(a.category)))
+    setUpsell(null)
   }
 
   const handleExportJSON = () => {
@@ -83,6 +105,13 @@ export function ExportSharePanel({ project, assets, onProjectUpdate }: ExportSha
             <DialogDescription>
               Download your project and all generated assets in different formats
             </DialogDescription>
+            <div className="flex items-start gap-2 pt-2 text-xs text-muted-foreground bg-muted/50 rounded-md p-3">
+              <Lock size={14} className="mt-0.5 shrink-0" />
+              <span>
+                The Markdown pack (your investor-ready documents) unlocks with a pack purchase.
+                JSON backup export is always free.
+              </span>
+            </div>
           </DialogHeader>
 
           <div className="space-y-4 pt-4">
@@ -93,9 +122,9 @@ export function ExportSharePanel({ project, assets, onProjectUpdate }: ExportSha
             >
               <FileText className="mr-3" size={20} />
               <div className="text-left">
-                <div className="font-medium">Export as Markdown</div>
+                <div className="font-medium">Export Pack as Markdown</div>
                 <div className="text-xs text-muted-foreground">
-                  Readable document with all content
+                  Clean, investor-ready documents — requires a pack
                 </div>
               </div>
             </Button>
@@ -109,10 +138,51 @@ export function ExportSharePanel({ project, assets, onProjectUpdate }: ExportSha
               <div className="text-left">
                 <div className="font-medium">Export as JSON</div>
                 <div className="text-xs text-muted-foreground">
-                  Structured data for backup or import
+                  Structured data for backup or import — free
                 </div>
               </div>
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Upsell dialog when locked sections are exported */}
+      <Dialog open={!!upsell} onOpenChange={(open) => !open && setUpsell(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Unlock your pack</DialogTitle>
+            <DialogDescription>
+              These sections are part of a paid pack:
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <ul className="list-disc pl-5 text-sm space-y-1">
+              {upsell?.locked.map((c) => (
+                <li key={c}>{categoryName(c)}</li>
+              ))}
+            </ul>
+            {upsell && (
+              <div className="rounded-lg border p-4 space-y-2">
+                <div className="font-semibold">
+                  {upsell.pack.name} Pack — ${upsell.pack.priceUSD}
+                </div>
+                <div className="text-sm text-muted-foreground">{upsell.pack.tagline}. One-time payment.</div>
+                {upsell.pack.stripeLink ? (
+                  <Button asChild className="w-full">
+                    <a href={upsell.pack.stripeLink} target="_blank" rel="noopener noreferrer">
+                      Buy {upsell.pack.name} — ${upsell.pack.priceUSD}
+                    </a>
+                  </Button>
+                ) : (
+                  <Button disabled className="w-full">
+                    Checkout opening soon
+                  </Button>
+                )}
+                <Button variant="ghost" className="w-full" onClick={handleExportUnlockedOnly}>
+                  Export my unlocked sections only
+                </Button>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

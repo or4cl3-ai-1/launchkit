@@ -313,9 +313,12 @@ Be specific and realistic about competitor capabilities.`
   return parsed.competitors
 }
 
-export function exportAsMarkdown(project: ProjectData, assets: GeneratedAsset[]): string {
+export function exportAsMarkdown(project: ProjectData, assets: GeneratedAsset[], paid: boolean = false): string {
   let markdown = `# ${project.companyName}\n\n`
   markdown += `**${project.tagline}**\n\n`
+  if (!paid) {
+    markdown += `> *Free preview exported with LaunchKit — buy a pack at https://or4cl3-ai-1.github.io/launchkit/ for the clean, investor-ready version.*\n\n`
+  }
   markdown += `---\n\n`
   markdown += `## Project Overview\n\n`
   markdown += `**Created:** ${new Date(project.createdAt).toLocaleDateString()}\n`
