@@ -50,6 +50,8 @@ export function MainApp({ currentProject, onProjectChange, onReset }: MainAppPro
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [showKeyDialog, setShowKeyDialog] = useState(false)
   const [importText, setImportText] = useState('')
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
+  const [showImportText, setShowImportText] = useState(false)
   const [assets, setAssets] = useKV<GeneratedAsset[]>('generated-assets', [])
   const [selectedAssetCategory, setSelectedAssetCategory] = useState<AssetCategory | 'research'>('brand')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -110,10 +112,20 @@ export function MainApp({ currentProject, onProjectChange, onReset }: MainAppPro
     try {
       const text = await extractTextFromPDF(file)
       setImportText(text)
-      toast.success('PDF content extracted. Review and import.')
+      setUploadedFileName(file.name)
+      setShowImportText(false)
+      // Let the same file be picked again if the user wants to re-upload it.
+      event.target.value = ''
+      toast.success('PDF uploaded — ready to extract.')
     } catch (error) {
       toast.error('Failed to extract PDF content. Please try pasting text instead.')
     }
+  }
+
+  const clearUploadedFile = () => {
+    setImportText('')
+    setUploadedFileName(null)
+    setShowImportText(false)
   }
 
   const handleNext = () => {
@@ -424,25 +436,66 @@ export function MainApp({ currentProject, onProjectChange, onReset }: MainAppPro
                             className="w-full"
                           >
                             <FilePdf className="mr-2" size={20} />
-                            Upload PDF Document
+                            {uploadedFileName ? 'Upload a different PDF' : 'Upload PDF Document'}
                           </Button>
                         </div>
-                        
-                        <div className="relative">
-                          <div className="absolute inset-0 flex items-center">
-                            <span className="w-full border-t" />
+
+                        {uploadedFileName ? (
+                          <div className="space-y-2">
+                            <div className="flex items-start gap-3 rounded-md border p-3">
+                              <CheckCircle className="text-green-600 shrink-0 mt-0.5" size={20} />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium truncate">{uploadedFileName}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  Uploaded — {importText.length.toLocaleString()} characters
+                                  extracted and ready for AI extraction.
+                                </p>
+                              </div>
+                              <Button variant="ghost" size="sm" onClick={clearUploadedFile}>
+                                Remove
+                              </Button>
+                            </div>
+                            <div className="flex justify-end">
+                              <Button
+                                variant="link"
+                                size="sm"
+                                className="h-auto p-0"
+                                onClick={() => setShowImportText(prev => !prev)}
+                              >
+                                {showImportText ? 'Hide text' : 'Review or edit text'}
+                              </Button>
+                            </div>
                           </div>
-                          <div className="relative flex justify-center text-xs uppercase">
-                            <span className="bg-background px-2 text-muted-foreground">Or paste text</span>
+                        ) : (
+                          <div className="relative">
+                            <div className="absolute inset-0 flex items-center">
+                              <span className="w-full border-t" />
+                            </div>
+                            <div className="relative flex justify-center text-xs uppercase">
+                              <span className="bg-background px-2 text-muted-foreground">Or paste text</span>
+                            </div>
                           </div>
-                        </div>
-                        
-                        <Textarea
-                          placeholder="Paste your document content here..."
-                          value={importText}
-                          onChange={(e) => setImportText(e.target.value)}
-                          rows={10}
-                        />
+                        )}
+
+                        {(!uploadedFileName || showImportText) && (
+                          <div>
+                            <Textarea
+                              placeholder="Paste your document content here..."
+                              value={importText}
+                              onChange={(e) => {
+                                setImportText(e.target.value)
+                                if (!e.target.value.trim()) setUploadedFileName(null)
+                              }}
+                              rows={10}
+                              className="max-h-[40dvh] overflow-y-auto"
+                            />
+                            {importText.length > 0 && (
+                              <p className="text-xs text-muted-foreground pt-1">
+                                {importText.length.toLocaleString()} characters loaded.
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
                       
                       <div className="flex justify-end gap-2">
