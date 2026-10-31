@@ -34,7 +34,8 @@ export interface GeneratedAsset {
   createdAt: string
 }
 
-export type AssetCategory = 
+export type AssetCategory =
+  | 'logo'
   | 'brand'
   | 'market'
   | 'competition'
@@ -43,6 +44,7 @@ export type AssetCategory =
   | 'marketing'
   | 'pitch-deck'
   | 'legal'
+  | 'sources'
 
 export interface VibeOption {
   id: BrandVibe

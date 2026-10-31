@@ -32,7 +32,7 @@ export const PACKS: Pack[] = [
     name: 'Starter',
     tagline: 'The "Side Hustle" pack',
     priceUSD: 49,
-    categories: ['brand', 'business-plan', 'marketing'],
+    categories: ['logo', 'brand', 'business-plan', 'marketing', 'sources'],
     stripeLink: '',
   },
   {
@@ -40,7 +40,7 @@ export const PACKS: Pack[] = [
     name: 'Pro',
     tagline: 'The "Founder" pack',
     priceUSD: 99,
-    categories: ['brand', 'business-plan', 'marketing', 'market', 'competition', 'financials'],
+    categories: ['logo', 'brand', 'business-plan', 'marketing', 'market', 'competition', 'financials', 'sources'],
     stripeLink: '',
     featured: true,
   },
@@ -49,7 +49,7 @@ export const PACKS: Pack[] = [
     name: 'Complete',
     tagline: 'The "CEO" pack',
     priceUSD: 199,
-    categories: ['brand', 'business-plan', 'marketing', 'market', 'competition', 'financials', 'pitch-deck', 'legal'],
+    categories: ['logo', 'brand', 'business-plan', 'marketing', 'market', 'competition', 'financials', 'pitch-deck', 'legal', 'sources'],
     stripeLink: '',
   },
   {
@@ -57,7 +57,7 @@ export const PACKS: Pack[] = [
     name: 'Refresh',
     tagline: 'Pivoted? Re-export your updated pack',
     priceUSD: 29,
-    categories: ['brand', 'business-plan', 'marketing'],
+    categories: ['logo', 'brand', 'business-plan', 'marketing', 'sources'],
     stripeLink: '',
   },
 ]

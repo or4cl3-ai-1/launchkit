@@ -59,6 +59,11 @@ export const VIBE_OPTIONS: VibeOption[] = [
 ]
 
 export const ASSET_CATEGORIES: Record<AssetCategory, { name: string; icon: string; description: string }> = {
+  'logo': {
+    name: 'Logo Design',
+    icon: 'Image',
+    description: 'Logo concepts, construction, variants, usage rules',
+  },
   'brand': {
     name: 'Brand Identity',
     icon: 'Palette',
@@ -98,6 +103,11 @@ export const ASSET_CATEGORIES: Record<AssetCategory, { name: string; icon: strin
     name: 'Legal & Compliance',
     icon: 'Scale',
     description: 'Privacy policy, terms of service templates',
+  },
+  'sources': {
+    name: 'Sources & Citations',
+    icon: 'BookOpen',
+    description: 'Sources, assumptions, and what still needs verifying',
   },
 }
 

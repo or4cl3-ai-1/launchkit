@@ -15,6 +15,8 @@ import {
   Upload,
   FilePdf,
   CheckCircle,
+  Image,
+  BookOpen,
   Palette,
   ChartBar,
   Users,
@@ -158,7 +160,7 @@ export function MainApp({ currentProject, onProjectChange, onReset }: MainAppPro
 
     onProjectChange(project)
 
-    const categories: AssetCategory[] = ['brand', 'market', 'competition', 'business-plan', 'financials', 'marketing', 'pitch-deck', 'legal']
+    const categories: AssetCategory[] = ['logo', 'brand', 'market', 'competition', 'business-plan', 'financials', 'marketing', 'pitch-deck', 'legal', 'sources']
     const newAssets: GeneratedAsset[] = []
 
     for (let i = 0; i < categories.length; i++) {
@@ -192,6 +194,7 @@ export function MainApp({ currentProject, onProjectChange, onReset }: MainAppPro
 
   const getIconForCategory = (category: AssetCategory) => {
     const icons = {
+      logo: Image,
       brand: Palette,
       market: ChartBar,
       competition: Users,
@@ -199,7 +202,8 @@ export function MainApp({ currentProject, onProjectChange, onReset }: MainAppPro
       financials: CurrencyDollar,
       marketing: Megaphone,
       'pitch-deck': Presentation,
-      legal: Scales
+      legal: Scales,
+      sources: BookOpen
     }
     const Icon = icons[category]
     return <Icon size={20} weight="fill" />

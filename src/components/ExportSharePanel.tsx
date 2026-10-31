@@ -15,6 +15,8 @@ import { DownloadSimple, FileArrowDown, FileText, Copy, CheckCircle, ShareNetwor
 import { toast } from 'sonner'
 import type { ProjectData, GeneratedAsset, AssetCategory } from '@/lib/types'
 import { exportAsMarkdown, downloadMarkdown, downloadJSON, generateShareId } from '@/lib/ai-helpers'
+import { buildPackFiles, missingPackFilenames, slugifyCompanyName, FULL_PACK_FILENAMES } from '@/lib/pack-files'
+import { createZipBlob, downloadBlob } from '@/lib/zip'
 import { usePurchases, categoryName, type Pack } from '@/lib/packs'
 
 interface ExportSharePanelProps {
@@ -26,32 +28,75 @@ interface ExportSharePanelProps {
 export function ExportSharePanel({ project, assets, onProjectUpdate }: ExportSharePanelProps) {
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [upsell, setUpsell] = useState<{ pack: Pack; locked: AssetCategory[] } | null>(null)
+  const [upsell, setUpsell] = useState<{ pack: Pack; locked: AssetCategory[]; format: 'zip' | 'md' } | null>(null)
   const { exportableCategories, cheapestPackFor } = usePurchases()
+
+  const packFiles = buildPackFiles(project, assets)
+  const missingFiles = missingPackFilenames(project, assets)
 
   const doExportMarkdown = (onlyUnlocked: GeneratedAsset[]) => {
     const markdown = exportAsMarkdown(project, onlyUnlocked, true)
-    const filename = `${project.companyName.replace(/\s+/g, '-').toLowerCase()}-launchkit.md`
+    const filename = `${slugifyCompanyName(project.companyName)}-launchkit.md`
     downloadMarkdown(markdown, filename)
     toast.success('Pack exported as Markdown')
   }
 
-  const handleExportMarkdown = () => {
+  const doExportZip = (onlyUnlocked: GeneratedAsset[]) => {
+    const files = buildPackFiles(project, onlyUnlocked)
+    const blob = createZipBlob(files)
+    downloadBlob(blob, `${slugifyCompanyName(project.companyName)}-launchkit.zip`)
+    toast.success(`Pack exported as ZIP (${files.length} files)`)
+  }
+
+  /**
+   * Sources & Citations is always included, regardless of pack.
+   * It is the pack's audit trail, not a paid section: it never
+   * counts as locked, and it is always part of an unlocked-only
+   * export — as the generated Sources asset when one exists, or
+   * as the export-time source-status checklist otherwise
+   * (see buildPackFiles in pack-files.ts).
+   */
+  const lockedCategories = () => {
     const exportable = exportableCategories()
-    const locked = [...new Set(assets.map((a) => a.category))].filter((c) => !exportable.includes(c))
+    return [...new Set(assets.map((a) => a.category))]
+      .filter((c) => c !== 'sources')
+      .filter((c) => !exportable.includes(c))
+  }
+
+  const handleExportMarkdown = () => {
+    const locked = lockedCategories()
     if (locked.length > 0) {
       const pack = cheapestPackFor(assets.map((a) => a.category))
       if (pack) {
-        setUpsell({ pack, locked })
+        setUpsell({ pack, locked, format: 'md' })
         return
       }
     }
     doExportMarkdown(assets)
   }
 
+  const handleExportZip = () => {
+    const locked = lockedCategories()
+    if (locked.length > 0) {
+      const pack = cheapestPackFor(assets.map((a) => a.category))
+      if (pack) {
+        setUpsell({ pack, locked, format: 'zip' })
+        return
+      }
+    }
+    doExportZip(assets)
+  }
+
   const handleExportUnlockedOnly = () => {
     const exportable = exportableCategories()
-    doExportMarkdown(assets.filter((a) => exportable.includes(a.category)))
+    const unlocked = assets.filter(
+      (a) => exportable.includes(a.category) || a.category === 'sources',
+    )
+    if (upsell?.format === 'zip') {
+      doExportZip(unlocked)
+    } else {
+      doExportMarkdown(unlocked)
+    }
     setUpsell(null)
   }
 
@@ -109,12 +154,41 @@ export function ExportSharePanel({ project, assets, onProjectUpdate }: ExportSha
               <Lock size={14} className="mt-0.5 shrink-0" />
               <span>
                 The Markdown pack (your investor-ready documents) unlocks with a pack purchase.
-                JSON backup export is always free.
+                JSON backup export is always free, and Sources &amp; Citations is always included,
+                regardless of pack.
               </span>
             </div>
           </DialogHeader>
 
           <div className="space-y-4 pt-4">
+            <Button
+              onClick={handleExportZip}
+              className="w-full justify-start"
+              variant="outline"
+            >
+              <FileText className="mr-3" size={20} />
+              <div className="text-left">
+                <div className="font-medium">Export Pack as ZIP</div>
+                <div className="text-xs text-muted-foreground">
+                  {packFiles.length} files — README, master plan, and one file per deliverable — requires a pack
+                </div>
+              </div>
+            </Button>
+
+            <div className="rounded-md border p-3">
+              <div className="text-xs font-medium mb-2">
+                Pack files ({packFiles.length} of {FULL_PACK_FILENAMES.length})
+                {missingFiles.length > 0 && (
+                  <span className="font-normal text-muted-foreground"> — missing: {missingFiles.join(', ')}</span>
+                )}
+              </div>
+              <ul className="text-xs font-mono text-muted-foreground space-y-0.5">
+                {packFiles.map((f) => (
+                  <li key={f.filename}>{f.filename}</li>
+                ))}
+              </ul>
+            </div>
+
             <Button
               onClick={handleExportMarkdown}
               className="w-full justify-start"
@@ -124,7 +198,7 @@ export function ExportSharePanel({ project, assets, onProjectUpdate }: ExportSha
               <div className="text-left">
                 <div className="font-medium">Export Pack as Markdown</div>
                 <div className="text-xs text-muted-foreground">
-                  Clean, investor-ready documents — requires a pack
+                  Single combined document — requires a pack
                 </div>
               </div>
             </Button>

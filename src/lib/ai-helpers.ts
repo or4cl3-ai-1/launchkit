@@ -59,6 +59,25 @@ export async function generateAsset(
   category: AssetCategory
 ): Promise<string> {
   const prompts: Record<AssetCategory, string> = {
+    'logo': spark.llmPrompt`Generate a logo design document for ${project.companyName}.
+
+Company Details:
+- Name: ${project.companyName}
+- Tagline: ${project.tagline}
+- Solution: ${project.solution}
+- Brand Vibe: ${project.brandVibe}
+
+Create a detailed logo design document including:
+1. Logo Concept (the primary mark, and what it symbolises)
+2. Three Logo Directions (each with a description a designer could draw from)
+3. Construction & Geometry (shapes, proportions, grid)
+4. Color Variants (primary, monochrome, reversed)
+5. Typography Pairing for the wordmark
+6. Clearspace, Minimum Size & Usage Rules (do / do not)
+7. Favicon & App Icon Adaptation
+
+Describe the mark in words precisely enough to reproduce it; do not claim an SVG file has been delivered unless one is attached. Format as a professional document with clear sections.`,
+
     'brand': spark.llmPrompt`Generate a comprehensive brand identity guide for ${project.companyName}.
 
 Company Details:
@@ -71,7 +90,7 @@ Create a detailed brand identity guide including:
 1. Brand Story & Positioning
 2. Color Palette (with hex codes)
 3. Typography System
-4. Logo Concepts (3 directions)
+4. Logo Application (how the mark from the separate Logo Design document is used — do not invent a second, conflicting logo)
 5. Visual Style Guidelines
 6. Voice & Tone
 7. Brand Applications (business cards, social media, etc.)
@@ -95,7 +114,7 @@ Create a detailed market analysis including:
 6. Demand Signals & Validation
 7. Market Entry Strategy
 
-Include specific numbers, research-backed insights, and actionable recommendations.`,
+Include specific numbers, research-backed insights, and actionable recommendations. For every TAM/SAM/SOM figure, name its source (publisher and year) or explicitly mark it as an estimate with no source cited. Do not invent a citation, author, URL, or DOI.`,
 
     'competition': spark.llmPrompt`Generate a competitive analysis for ${project.companyName}.
 
@@ -159,7 +178,7 @@ Create comprehensive financial projections including:
 9. Key Financial Metrics & Ratios
 10. Funding Requirements
 
-Use realistic assumptions and show your calculations.`,
+Use realistic assumptions and show your calculations. State the period for every price (one-time, monthly, or annual) and list every assumption behind CAC, LTV, costs, and customer counts. Mark any figure not supplied in the project as an assumption, not a fact.`,
 
     'marketing': spark.llmPrompt`Generate a comprehensive marketing strategy for ${project.companyName}.
 
@@ -239,6 +258,29 @@ Also include:
 11. Social Media Content Calendar
 
 Format professionally with proper legal language where appropriate.`,
+
+    'sources': spark.llmPrompt`Generate a Sources & Citations document for ${project.companyName}.
+
+Company Details:
+- Name: ${project.companyName}
+- Tagline: ${project.tagline}
+- Solution: ${project.solution}
+- Target Market: ${project.targetMarket}
+- Market Size: ${project.marketSize}
+- Revenue Model: ${project.revenueModel}
+- Pricing: ${project.pricing}
+
+This document is the pack's audit trail. It must not invent authority it does not have.
+
+Create:
+1. What came from the project itself (company, problem, solution, target market, revenue model, pricing as supplied — list only what was actually supplied above, and say "not supplied" where a field is empty)
+2. Market sources: for TAM/SAM/SOM and trend claims, name the source (publisher and year) where one exists; where none exists, write "No source cited — estimate, verify before external use"
+3. Competitive sources: sources for competitor pricing, features, and positioning, or "No source cited" where none exists
+4. Regulatory sources: the official source for any EU AI Act, GDPR, CCPA, HIPAA, or other compliance claim made in the pack, or "No source cited" where none exists
+5. Financial assumptions: every pricing period, customer count, CAC, cost, and churn assumption in the pack, marked as assumption unless the project supplied it
+6. What still needs verifying before this pack is shown to investors, customers, or lawyers (a short checklist)
+
+Hard rule: do not invent a citation, author, publication, URL, DOI, report title, or date. A missing source is written as missing, never filled with a plausible-sounding one.`,
   }
 
   const prompt = prompts[category]

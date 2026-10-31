@@ -2,7 +2,7 @@
 
 **From idea to investor-ready in about 10 minutes.**
 
-LaunchKit turns a raw business idea — or a messy pile of notes, a README, a PDF — into a full suite of launch assets: brand identity, market analysis, business plan, financial projections, marketing strategy, pitch deck, and legal templates.
+LaunchKit turns a raw business idea — or a messy pile of notes, a README, a PDF — into a full suite of launch assets: logo design, brand identity, market analysis, business plan, financial projections, marketing strategy, pitch deck, and legal templates.
 
 🚀 **Live demo:** https://or4cl3-ai-1.github.io/launchkit/
 
@@ -10,12 +10,15 @@ LaunchKit turns a raw business idea — or a messy pile of notes, a README, a PD
 
 1. **Describe your idea** — fill in a 5-step wizard, or import a PDF / paste a document and let the AI extract the details.
 2. **Pick a brand vibe** — Minimal, Bold, Luxury, Tech, or Rebel. Every asset inherits it.
-3. **Generate** — 8 asset categories generated in a few minutes, with live progress.
-4. **Export & share** — Markdown, JSON, or a shareable link.
+3. **Generate** — 10 asset categories generated in a few minutes, with live progress.
+4. **Export & share** — a ZIP pack, Markdown, JSON, or a shareable link.
 
 ### What you get
 
-- **Brand identity** — logo concepts, palette, typography
+A full pack is 12 files: `README.md`, `00_full_master_business_plan.md` (all sections stitched together), plus one file per deliverable — `01_logo_design.md`, `02_brand_identity.md`, `03_market_intel.md`, `04_competitive_analysis.md`, `05_business_plan.md`, `06_financial_projections.md`, `07_marketing_strategy.md`, `08_pitch_deck.md`, `09_legal_&_social.md`, `10_sources_and_citations.md`.
+
+- **Logo design** — logo concepts, construction, variants, usage rules
+- **Brand identity** — palette, typography, voice & tone
 - **Market intelligence** — TAM/SAM/SOM, personas, demand signals
 - **Competition analysis** — competitor profiles, pricing, SWOT positioning
 - **Business plan** — ~15-page executive plan
@@ -23,6 +26,7 @@ LaunchKit turns a raw business idea — or a messy pile of notes, a README, a PD
 - **Marketing strategy** — 30-day launch calendar, SEO keywords, ad copy
 - **Pitch deck** — slides with speaker notes
 - **Legal templates** — Privacy Policy, Terms of Service
+- **Sources & citations** — what came from the project, sources for market/competitive/regulatory claims, financial assumptions, and what still needs verifying. A missing source is written as missing, never filled with a plausible-sounding citation. This file is always included, regardless of pack — it is the audit trail, not a paid section.
 
 ## Bring your own key
 
