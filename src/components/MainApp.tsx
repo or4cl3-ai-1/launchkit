@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -30,8 +30,7 @@ import { toast } from 'sonner'
 import type { ProjectData, BrandVibe,  GeneratedAsset, AssetCategory } from '@/lib/types'
 import { VIBE_OPTIONS, WIZARD_STEPS, ASSET_CATEGORIES } from '@/lib/constants'
 import { generateProjectId, generateAssetId, extractProjectDataFromDocument, extractTextFromPDF, generateAsset } from '@/lib/ai-helpers'
-import { useKV } from '@/lib/standalone'
-import { getApiKey } from '@/lib/standalone'
+import { useKV, getApiKey, getProvider, PROVIDERS } from '@/lib/standalone'
 import { ApiKeyDialog } from '@/components/ApiKeyDialog'
 import { ResearchPanel } from '@/components/ResearchPanel'
 import { ExportSharePanel } from '@/components/ExportSharePanel'
@@ -50,6 +49,33 @@ export function MainApp({ currentProject, onProjectChange, onReset }: MainAppPro
   const [importText, setImportText] = useState('')
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
   const [isDraggingFile, setIsDraggingFile] = useState(false)
+  // Bumped when the key dialog closes so the key-status bar re-reads
+  // localStorage (a saved key otherwise wouldn't show until reload).
+  const [keyVersion, setKeyVersion] = useState(0)
+
+  // The key dialog used to have no visible way to open it in the wizard
+  // — it only appeared when a generation was attempted without a key.
+  // If no key is saved yet, open it on arrival so the user sees exactly
+  // where the key goes instead of hunting for it.
+  useEffect(() => {
+    if (!getApiKey()) {
+      setShowKeyDialog(true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const handleKeyDialogChange = (open: boolean) => {
+    setShowKeyDialog(open)
+    if (!open) setKeyVersion((v) => v + 1)
+  }
+
+  // Read fresh on every render; keyVersion (bumped when the dialog
+  // closes) forces a re-render after a key is saved.
+  const hasApiKey = Boolean(getApiKey())
+  const providerLabel =
+    getProvider() === 'custom' ? 'Custom' : PROVIDERS[getProvider() as keyof typeof PROVIDERS].label
+  const providerBadge =
+    getProvider() === 'custom' ? '' : PROVIDERS[getProvider() as keyof typeof PROVIDERS].badge
   const [assets, setAssets] = useKV<GeneratedAsset[]>('generated-assets', [])
   const [selectedAssetCategory, setSelectedAssetCategory] = useState<AssetCategory | 'research'>('brand')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -375,11 +401,44 @@ export function MainApp({ currentProject, onProjectChange, onReset }: MainAppPro
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 p-6">
-      <ApiKeyDialog open={showKeyDialog} onOpenChange={setShowKeyDialog} />
+      <ApiKeyDialog open={showKeyDialog} onOpenChange={handleKeyDialogChange} />
       <div className="container mx-auto max-w-4xl">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-white mb-2">Create Your Project</h1>
           <p className="text-slate-300">Start by uploading a document — or answer a few questions to generate your business assets</p>
+        </div>
+
+        {/*
+          Always-visible API key control. This is the fix for "no visible
+          place to enter the API key": the dialog previously had no button
+          in the wizard at all.
+        */}
+        <div
+          key={keyVersion}
+          className={`mb-6 flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between ${
+            hasApiKey ? 'border-white/20 bg-white/5' : 'border-amber-400/60 bg-amber-400/10'
+          }`}
+        >
+          <div>
+            <p className="font-semibold text-white">
+              {hasApiKey
+                ? `AI connected: ${providerLabel}${providerBadge ? ` (${providerBadge})` : ''} — key saved in this browser`
+                : 'No AI key yet — add your free Groq key to enable generation'}
+            </p>
+            <p className="text-sm text-slate-300">
+              {hasApiKey
+                ? 'Generation uses your key. Switch provider or replace the key any time.'
+                : 'Free, no card. Get a key at console.groq.com/keys, then paste it here.'}
+            </p>
+          </div>
+          <Button
+            onClick={() => setShowKeyDialog(true)}
+            variant={hasApiKey ? 'outline' : 'default'}
+            size="lg"
+            className={hasApiKey ? 'shrink-0 text-white border-white/30 hover:bg-white/10' : 'shrink-0'}
+          >
+            {hasApiKey ? 'Change API key' : 'Add free API key'}
+          </Button>
         </div>
 
         <div className="mb-8">
