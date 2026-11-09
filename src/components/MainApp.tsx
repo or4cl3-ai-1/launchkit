@@ -4,7 +4,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -47,11 +46,10 @@ export function MainApp({ currentProject, onProjectChange, onReset }: MainAppPro
   const [step, setStep] = useState(0)
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationProgress, setGenerationProgress] = useState(0)
-  const [showImportDialog, setShowImportDialog] = useState(false)
   const [showKeyDialog, setShowKeyDialog] = useState(false)
   const [importText, setImportText] = useState('')
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
-  const [showImportText, setShowImportText] = useState(false)
+  const [isDraggingFile, setIsDraggingFile] = useState(false)
   const [assets, setAssets] = useKV<GeneratedAsset[]>('generated-assets', [])
   const [selectedAssetCategory, setSelectedAssetCategory] = useState<AssetCategory | 'research'>('brand')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -81,27 +79,29 @@ export function MainApp({ currentProject, onProjectChange, onReset }: MainAppPro
 
   const handleImportDocument = async () => {
     if (!importText.trim()) {
-      toast.error('Please paste some content to import')
+      toast.error('Upload a PDF or paste some text first')
       return
     }
     if (!requireApiKey()) return
 
-    toast.loading('AI is analyzing your document...')
-    
+    const toastId = toast.loading('AI is analyzing your document...')
+
     try {
       const extracted = await extractProjectDataFromDocument(importText)
       setFormData(prev => ({ ...prev, ...extracted }))
-      setShowImportDialog(false)
+      toast.dismiss(toastId)
       toast.success('Document imported successfully!')
     } catch (error) {
-      toast.error('Failed to import document. Please try again.')
+      toast.dismiss(toastId)
+      // Previously this swallowed the real failure behind a generic
+      // message, which made a key/model/provider problem impossible to
+      // diagnose. Show the provider's own error (it contains no key).
+      const detail = error instanceof Error ? error.message : 'Unknown error'
+      toast.error(`Import failed: ${detail.slice(0, 300)}`, { duration: 10000 })
     }
   }
 
-  const handlePDFUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
+  const handleFile = async (file: File) => {
     if (file.type !== 'application/pdf') {
       toast.error('Please upload a PDF file')
       return
@@ -113,19 +113,30 @@ export function MainApp({ currentProject, onProjectChange, onReset }: MainAppPro
       const text = await extractTextFromPDF(file)
       setImportText(text)
       setUploadedFileName(file.name)
-      setShowImportText(false)
-      // Let the same file be picked again if the user wants to re-upload it.
-      event.target.value = ''
       toast.success('PDF uploaded — ready to extract.')
     } catch (error) {
       toast.error('Failed to extract PDF content. Please try pasting text instead.')
     }
   }
 
+  const handlePDFUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    await handleFile(file)
+    // Let the same file be picked again if the user wants to re-upload it.
+    event.target.value = ''
+  }
+
+  const handleDrop = async (event: React.DragEvent) => {
+    event.preventDefault()
+    setIsDraggingFile(false)
+    const file = event.dataTransfer.files?.[0]
+    if (file) await handleFile(file)
+  }
+
   const clearUploadedFile = () => {
     setImportText('')
     setUploadedFileName(null)
-    setShowImportText(false)
   }
 
   const handleNext = () => {
@@ -368,7 +379,7 @@ export function MainApp({ currentProject, onProjectChange, onReset }: MainAppPro
       <div className="container mx-auto max-w-4xl">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-white mb-2">Create Your Project</h1>
-          <p className="text-slate-300">Answer a few questions to generate your business assets</p>
+          <p className="text-slate-300">Start by uploading a document — or answer a few questions to generate your business assets</p>
         </div>
 
         <div className="mb-8">
@@ -405,110 +416,107 @@ export function MainApp({ currentProject, onProjectChange, onReset }: MainAppPro
           <CardContent className="space-y-6">
             {step === 0 && (
               <div className="space-y-4">
-                <div className="flex justify-end">
-                  <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" size="sm">
-                        <Upload className="mr-2" size={16} />
-                        Import from Document
+                {/*
+                  The document input used to hide behind a small
+                  "Import from Document" button that opened a dialog —
+                  on a phone it was effectively invisible. It now lives
+                  right here at the top of step 1, always visible: drop
+                  a PDF on it or paste text, then hit Extract.
+                */}
+                <div
+                  className={`rounded-xl border-2 border-dashed p-4 sm:p-5 space-y-4 transition-colors ${
+                    isDraggingFile
+                      ? 'border-primary bg-primary/10'
+                      : 'border-white/30 bg-white/5'
+                  }`}
+                  onDragOver={(e) => {
+                    e.preventDefault()
+                    setIsDraggingFile(true)
+                  }}
+                  onDragLeave={() => setIsDraggingFile(false)}
+                  onDrop={handleDrop}
+                >
+                  <div>
+                    <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                      <Upload size={20} />
+                      Start from a document
+                    </h3>
+                    <p className="text-sm text-slate-300">
+                      Drop a PDF here, or paste your document text below — AI fills in the form for you.
+                    </p>
+                  </div>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf"
+                    onChange={handlePDFUpload}
+                    className="hidden"
+                  />
+                  <Button
+                    onClick={() => fileInputRef.current?.click()}
+                    variant="outline"
+                    size="lg"
+                    className="w-full bg-white text-slate-900 hover:bg-slate-200 border-white"
+                  >
+                    <FilePdf className="mr-2" size={20} />
+                    {uploadedFileName ? 'Upload a different PDF' : 'Upload PDF Document'}
+                  </Button>
+
+                  {uploadedFileName && (
+                    <div className="flex items-start gap-3 rounded-md border border-white/20 bg-white/5 p-3">
+                      <CheckCircle className="text-green-400 shrink-0 mt-0.5" size={20} />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-white truncate">{uploadedFileName}</p>
+                        <p className="text-sm text-slate-300">
+                          Uploaded — {importText.length.toLocaleString()} characters
+                          extracted and ready for AI extraction.
+                        </p>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={clearUploadedFile} className="text-white hover:bg-white/10">
+                        Remove
                       </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Import from Document</DialogTitle>
-                        <DialogDescription>
-                          Upload a PDF or paste text. AI will extract the key information.
-                        </DialogDescription>
-                      </DialogHeader>
-                      
-                      <div className="space-y-4">
-                        <div>
-                          <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept=".pdf"
-                            onChange={handlePDFUpload}
-                            className="hidden"
-                          />
-                          <Button
-                            onClick={() => fileInputRef.current?.click()}
-                            variant="outline"
-                            className="w-full"
-                          >
-                            <FilePdf className="mr-2" size={20} />
-                            {uploadedFileName ? 'Upload a different PDF' : 'Upload PDF Document'}
-                          </Button>
-                        </div>
+                    </div>
+                  )}
 
-                        {uploadedFileName ? (
-                          <div className="space-y-2">
-                            <div className="flex items-start gap-3 rounded-md border p-3">
-                              <CheckCircle className="text-green-600 shrink-0 mt-0.5" size={20} />
-                              <div className="flex-1 min-w-0">
-                                <p className="font-medium truncate">{uploadedFileName}</p>
-                                <p className="text-sm text-muted-foreground">
-                                  Uploaded — {importText.length.toLocaleString()} characters
-                                  extracted and ready for AI extraction.
-                                </p>
-                              </div>
-                              <Button variant="ghost" size="sm" onClick={clearUploadedFile}>
-                                Remove
-                              </Button>
-                            </div>
-                            <div className="flex justify-end">
-                              <Button
-                                variant="link"
-                                size="sm"
-                                className="h-auto p-0"
-                                onClick={() => setShowImportText(prev => !prev)}
-                              >
-                                {showImportText ? 'Hide text' : 'Review or edit text'}
-                              </Button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="relative">
-                            <div className="absolute inset-0 flex items-center">
-                              <span className="w-full border-t" />
-                            </div>
-                            <div className="relative flex justify-center text-xs uppercase">
-                              <span className="bg-background px-2 text-muted-foreground">Or paste text</span>
-                            </div>
-                          </div>
-                        )}
+                  <div>
+                    <Label htmlFor="import-text" className="text-white">Or paste your document text here</Label>
+                    <Textarea
+                      id="import-text"
+                      placeholder="Paste your business plan, technical document, or notes here..."
+                      value={importText}
+                      onChange={(e) => {
+                        setImportText(e.target.value)
+                        if (!e.target.value.trim()) setUploadedFileName(null)
+                      }}
+                      rows={6}
+                      className="mt-1 max-h-40 overflow-y-auto bg-white/10 border-white/20 text-white placeholder:text-slate-400"
+                    />
+                    {importText.length > 0 && (
+                      <p className="text-xs text-slate-300 pt-1">
+                        {importText.length.toLocaleString()} characters loaded.
+                      </p>
+                    )}
+                  </div>
 
-                        {(!uploadedFileName || showImportText) && (
-                          <div>
-                            <Textarea
-                              placeholder="Paste your document content here..."
-                              value={importText}
-                              onChange={(e) => {
-                                setImportText(e.target.value)
-                                if (!e.target.value.trim()) setUploadedFileName(null)
-                              }}
-                              rows={10}
-                              className="max-h-[40dvh] overflow-y-auto"
-                            />
-                            {importText.length > 0 && (
-                              <p className="text-xs text-muted-foreground pt-1">
-                                {importText.length.toLocaleString()} characters loaded.
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" onClick={() => setShowImportDialog(false)}>
-                          Cancel
-                        </Button>
-                        <Button onClick={handleImportDocument}>
-                          <Sparkle className="mr-2" weight="fill" size={16} />
-                          Extract with AI
-                        </Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
+                  <Button
+                    onClick={handleImportDocument}
+                    disabled={!importText.trim()}
+                    size="lg"
+                    className="w-full"
+                  >
+                    <Sparkle className="mr-2" weight="fill" size={16} />
+                    Extract with AI
+                  </Button>
+                </div>
+
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-white/20" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-slate-950 px-2 text-slate-400">Or fill in the form below</span>
+                  </div>
                 </div>
 
                 <div>

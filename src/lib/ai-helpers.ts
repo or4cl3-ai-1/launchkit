@@ -18,8 +18,24 @@ export async function extractTextFromPDF(file: File): Promise<string> {
   return chunks.join('\n\n')
 }
 
-export async function extractProjectDataFromDocument(document: string): Promise<Partial<ProjectData>> {
-  const prompt = spark.llmPrompt`You are analyzing a business document to extract structured information.
+/**
+ * Parse model JSON leniently. Some OpenAI-compatible providers ignore
+ * response_format=json_object and wrap the answer in ```json fences or
+ * add prose around it — a plain JSON.parse then throws and the import
+ * fails with no useful message. Strip fences and take the first {...}.
+ */
+export function parseModelJson<T>(result: string): T {
+  const cleaned = result.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '')
+  const start = cleaned.indexOf('{')
+  const end = cleaned.lastIndexOf('}')
+  if (start === -1 || end === -1 || end <= start) {
+    throw new Error(`Model did not return JSON. Response began: ${cleaned.slice(0, 200)}`)
+  }
+  return JSON.parse(cleaned.slice(start, end + 1)) as T
+}
+
+function buildExtractPrompt(document: string) {
+  return spark.llmPrompt`You are analyzing a business document to extract structured information.
 
 Document content:
 ${document}
@@ -49,9 +65,24 @@ Return a JSON object with these fields (use empty strings for missing informatio
   "revenueModel": "",
   "pricing": ""
 }`
+}
 
-  const result = await spark.llm(prompt, 'gpt-4o', true)
-  return JSON.parse(result)
+export async function extractProjectDataFromDocument(document: string): Promise<Partial<ProjectData>> {
+  try {
+    const result = await spark.llm(buildExtractPrompt(document), undefined, true)
+    return parseModelJson<Partial<ProjectData>>(result)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    // Long documents + a small-context model/provider = a context-length
+    // failure. Retry once on the opening of the document, which is where
+    // company, problem and solution almost always live, rather than
+    // failing outright on a full technical paper.
+    const isContextError = /context|token|too long|maximum context|413|400/.test(message)
+    if (!isContextError || document.length <= 20000) throw error
+    const truncated = document.slice(0, 20000) + '\n\n[Document truncated for extraction: only the opening section was sent.]'
+    const result = await spark.llm(buildExtractPrompt(truncated), undefined, true)
+    return parseModelJson<Partial<ProjectData>>(result)
+  }
 }
 
 export async function generateAsset(
@@ -284,7 +315,7 @@ Hard rule: do not invent a citation, author, publication, URL, DOI, report title
   }
 
   const prompt = prompts[category]
-  const result = await spark.llm(prompt, 'gpt-4o', false)
+  const result = await spark.llm(prompt, undefined, false)
   return result
 }
 
@@ -320,8 +351,8 @@ Conduct deep market research and return a JSON object with:
 
 Be specific, data-driven, and actionable.`
 
-  const result = await spark.llm(prompt, 'gpt-4o', true)
-  return JSON.parse(result)
+  const result = await spark.llm(prompt, undefined, true)
+  return parseModelJson<MarketResearchData>(result)
 }
 
 export async function analyzeCompetition(project: ProjectData): Promise<CompetitorData[]> {
@@ -350,8 +381,8 @@ Identify and analyze 5-7 real or realistic competitors. Return a JSON object wit
 
 Be specific and realistic about competitor capabilities.`
 
-  const result = await spark.llm(prompt, 'gpt-4o', true)
-  const parsed = JSON.parse(result)
+  const result = await spark.llm(prompt, undefined, true)
+  const parsed = parseModelJson<{ competitors: CompetitorData[] }>(result)
   return parsed.competitors
 }
 

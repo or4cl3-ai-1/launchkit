@@ -15,6 +15,87 @@ import { useState, useCallback } from 'react'
 
 const LS_API_KEY = 'launchkit.apiKey'
 const LS_BASE_URL = 'launchkit.baseUrl'
+const LS_MODEL = 'launchkit.model'
+const LS_PROVIDER = 'launchkit.provider'
+
+/**
+ * Provider presets. LaunchKit never had a Hugging Face backend — the old
+ * default was OpenAI, and Groq/OpenRouter only worked if you typed the
+ * exact base URL and model name by hand. Picking a preset now fills both
+ * in with one tap. Groq is the default: free, no card, and its model IDs
+ * are stable, unlike OpenRouter's rotating :free roster.
+ */
+export type ProviderId = 'groq' | 'openrouter' | 'openai' | 'custom'
+
+export interface ProviderPreset {
+  id: Exclude<ProviderId, 'custom'>
+  label: string
+  badge: string
+  baseUrl: string
+  model: string
+  keyUrl: string
+  keyLabel: string
+  note: string
+}
+
+export const PROVIDERS: Record<Exclude<ProviderId, 'custom'>, ProviderPreset> = {
+  groq: {
+    id: 'groq',
+    label: 'Groq',
+    badge: 'Free',
+    baseUrl: 'https://api.groq.com/openai/v1',
+    model: 'llama-3.3-70b-versatile',
+    keyUrl: 'https://console.groq.com/keys',
+    keyLabel: 'Get a free Groq key',
+    note: 'Free, no card needed. Groq’s free tier allows about 100,000 tokens a day on this model — roughly one full business pack a day. A 429 error means the daily cap is hit; try again tomorrow, or add a card to raise the limits.',
+  },
+  openrouter: {
+    id: 'openrouter',
+    label: 'OpenRouter',
+    badge: 'Free',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    model: 'openrouter/free',
+    keyUrl: 'https://openrouter.ai/keys',
+    keyLabel: 'Get a free OpenRouter key',
+    note: 'Free models, no card — 50 requests a day, and a full pack uses about 13. openrouter/free routes to a working free model automatically; the free roster rotates, so if one model fails the router picks another.',
+  },
+  openai: {
+    id: 'openai',
+    label: 'OpenAI',
+    badge: 'Paid',
+    baseUrl: 'https://api.openai.com/v1',
+    model: 'gpt-4o',
+    keyUrl: 'https://platform.openai.com/api-keys',
+    keyLabel: 'Get an OpenAI key',
+    note: 'Pay per use — a full pack costs roughly $0.30–$0.60 in tokens.',
+  },
+}
+
+export function getProvider(): ProviderId {
+  try {
+    const stored = localStorage.getItem(LS_PROVIDER)
+    if (stored === 'groq' || stored === 'openrouter' || stored === 'openai' || stored === 'custom') {
+      return stored
+    }
+  } catch {
+    /* storage unavailable */
+  }
+  return 'groq'
+}
+
+export function setProvider(id: ProviderId) {
+  try {
+    localStorage.setItem(LS_PROVIDER, id)
+    if (id !== 'custom') {
+      // Presets own the URL/model; drop any hand-typed override so a
+      // stale OpenAI default can't silently win over the chosen preset.
+      localStorage.removeItem(LS_BASE_URL)
+      localStorage.removeItem(LS_MODEL)
+    }
+  } catch {
+    /* storage unavailable */
+  }
+}
 
 export function getApiKey(): string {
   try {
@@ -41,16 +122,48 @@ export function clearApiKey() {
 }
 
 export function getBaseUrl(): string {
-  try {
-    return localStorage.getItem(LS_BASE_URL) || 'https://api.openai.com/v1'
-  } catch {
-    return 'https://api.openai.com/v1'
+  const provider = getProvider()
+  if (provider === 'custom') {
+    try {
+      return localStorage.getItem(LS_BASE_URL) || PROVIDERS.groq.baseUrl
+    } catch {
+      return PROVIDERS.groq.baseUrl
+    }
   }
+  return PROVIDERS[provider].baseUrl
 }
 
 export function setBaseUrl(url: string) {
   try {
     localStorage.setItem(LS_BASE_URL, url.trim().replace(/\/$/, ''))
+    localStorage.setItem(LS_PROVIDER, 'custom')
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+/**
+ * Model name. Follows the chosen provider preset (Groq by default) — the
+ * app previously defaulted to gpt-4o everywhere, so a Groq key (which has
+ * no gpt-4o) or an OpenRouter key (which needs openai/gpt-4o) failed every
+ * call with a model-not-found error that the UI then swallowed.
+ */
+export function getModel(): string {
+  const provider = getProvider()
+  if (provider === 'custom') {
+    try {
+      return localStorage.getItem(LS_MODEL) || PROVIDERS.groq.model
+    } catch {
+      return PROVIDERS.groq.model
+    }
+  }
+  return PROVIDERS[provider].model
+}
+
+export function setModel(model: string) {
+  try {
+    localStorage.setItem(LS_MODEL, model.trim() || PROVIDERS.groq.model)
+    localStorage.setItem(LS_PROVIDER, 'custom')
   } catch {
     /* storage unavailable */
   }
@@ -78,7 +191,7 @@ export async function llm(prompt: string, modelName?: string, jsonMode?: boolean
     throw new Error('NO_API_KEY')
   }
 
-  const model = modelName || 'gpt-4o'
+  const model = modelName || getModel()
   const messages: ChatMessage[] = [
     { role: 'system', content: 'You are a helpful assistant.' },
     { role: 'user', content: prompt },
@@ -94,12 +207,20 @@ export async function llm(prompt: string, modelName?: string, jsonMode?: boolean
     body.response_format = { type: 'json_object' }
   }
 
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${apiKey}`,
+  }
+  // OpenRouter asks for these so it can show the app in its dashboard;
+  // they are harmless on other providers, so only send them there.
+  if (getBaseUrl().includes('openrouter.ai')) {
+    headers['HTTP-Referer'] = window.location.origin
+    headers['X-Title'] = 'LaunchKit'
+  }
+
   const response = await fetch(`${getBaseUrl()}/chat/completions`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
+    headers,
     body: JSON.stringify(body),
   })
 
