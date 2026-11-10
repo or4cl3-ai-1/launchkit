@@ -22,8 +22,11 @@ const LS_PROVIDER = 'launchkit.provider'
  * Provider presets. LaunchKit never had a Hugging Face backend — the old
  * default was OpenAI, and Groq/OpenRouter only worked if you typed the
  * exact base URL and model name by hand. Picking a preset now fills both
- * in with one tap. Groq is the default: free, no card, and its model IDs
- * are stable, unlike OpenRouter's rotating :free roster.
+ * in with one tap. Groq is the default: free, no card. Its model IDs do
+ * get retired — llama-3.3-70b-versatile was shut down for free/developer
+ * accounts on 2026-08-16 (Groq's own docs now mark it Enterprise-only),
+ * so the preset tracks Groq's recommended replacement and getModel()
+ * migrates any stored copy of a retired ID (see below).
  */
 export type ProviderId = 'groq' | 'openrouter' | 'openai' | 'custom'
 
@@ -44,10 +47,15 @@ export const PROVIDERS: Record<Exclude<ProviderId, 'custom'>, ProviderPreset> = 
     label: 'Groq',
     badge: 'Free',
     baseUrl: 'https://api.groq.com/openai/v1',
-    model: 'llama-3.3-70b-versatile',
+    // Groq retired llama-3.3-70b-versatile for free/developer accounts on
+    // 2026-08-16 — it now 404s with model_not_found on a free key.
+    // openai/gpt-oss-120b is Groq's recommended replacement (production,
+    // 131K context, 65K max completion). Verified against Groq's
+    // Supported Models page 2026-11-10.
+    model: 'openai/gpt-oss-120b',
     keyUrl: 'https://console.groq.com/keys',
     keyLabel: 'Get a free Groq key',
-    note: 'Free, no card needed. Groq’s free tier allows about 100,000 tokens a day on this model — roughly one full business pack a day. A 429 error means the daily cap is hit; try again tomorrow, or add a card to raise the limits.',
+    note: 'Free, no card needed. A 429 error means the daily cap is hit; try again tomorrow, or add a card to raise the limits. Groq retires model IDs without warning — if a preset model starts 404ing, check console.groq.com/docs/models for the current production list.',
   },
   openrouter: {
     id: 'openrouter',
@@ -147,12 +155,39 @@ export function setBaseUrl(url: string) {
  * app previously defaulted to gpt-4o everywhere, so a Groq key (which has
  * no gpt-4o) or an OpenRouter key (which needs openai/gpt-4o) failed every
  * call with a model-not-found error that the UI then swallowed.
+ *
+ * Retired-model migration: a stored model ID outlives the preset that set
+ * it (the key dialog saves whatever was in the model field), so changing
+ * the preset alone does NOT fix a browser that already saved the dead ID
+ * — that is exactly what happened with llama-3.3-70b-versatile in Nov
+ * 2026. Any stored ID on this map is rewritten to its replacement, in
+ * localStorage, the first time it is read.
  */
+const RETIRED_MODEL_MAP: Record<string, string> = {
+  // Groq shut these down for free/developer accounts 2026-08-16.
+  'llama-3.3-70b-versatile': 'openai/gpt-oss-120b',
+  'llama-3.1-8b-instant': 'openai/gpt-oss-20b',
+}
+
+function migrateRetiredModel(stored: string | null): string | null {
+  if (stored && RETIRED_MODEL_MAP[stored]) {
+    const replacement = RETIRED_MODEL_MAP[stored]
+    try {
+      localStorage.setItem(LS_MODEL, replacement)
+    } catch {
+      /* storage unavailable */
+    }
+    return replacement
+  }
+  return stored
+}
+
 export function getModel(): string {
   const provider = getProvider()
   if (provider === 'custom') {
     try {
-      return localStorage.getItem(LS_MODEL) || PROVIDERS.groq.model
+      const stored = migrateRetiredModel(localStorage.getItem(LS_MODEL))
+      return stored || PROVIDERS.groq.model
     } catch {
       return PROVIDERS.groq.model
     }
@@ -202,6 +237,14 @@ export async function llm(prompt: string, modelName?: string, jsonMode?: boolean
     messages,
     temperature: 1.0,
     max_tokens: 4000,
+  }
+  // gpt-oss models reason before answering, and those reasoning tokens
+  // count against the 4000-token cap — with the default (medium) effort
+  // the reasoning alone can eat the budget and truncate the JSON answer.
+  // 'low' keeps the reasoning short so the answer has room. Scoped to
+  // gpt-oss IDs only: other providers' models reject unknown params.
+  if (model.includes('gpt-oss')) {
+    body.reasoning_effort = 'low'
   }
   if (jsonMode) {
     body.response_format = { type: 'json_object' }

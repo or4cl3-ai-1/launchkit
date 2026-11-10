@@ -126,7 +126,7 @@ export function ApiKeyDialog({ open, onOpenChange }: ApiKeyDialogProps) {
             <Input
               id="lk-model"
               type="text"
-              placeholder="llama-3.3-70b-versatile"
+              placeholder="openai/gpt-oss-120b"
               value={model}
               onChange={(e) => setModelState(e.target.value)}
               autoComplete="off"
